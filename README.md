@@ -116,6 +116,63 @@ sudo python quickstart.py --prompt "pick up the red cube"
 
 ---
 
+## Advanced training
+
+The quickstart submits a one-epoch LoRA fine-tune with sensible defaults.
+For real production work, `client.training.lora_finetune(...)` accepts
+eight extra optional kwargs that thread straight through to the
+LeRobot training pipeline. Every value is bounds-checked server-side
+before a GPU is provisioned, so a bad config fails fast and you don't
+pay for it.
+
+```python
+from reflex import Reflex
+
+client = Reflex()
+job = client.training.lora_finetune(
+    hf_source_uri="hf://lerobot/aloha_sim_transfer_cube_human",
+    model_name="pi05-aloha-cube",
+    model_version="v1",
+    # Core knobs:
+    max_steps=2000,
+    batch_size=8,
+    learning_rate=1e-4,
+    lora_rank=16,
+    # Advanced — all optional, all bounds-checked server-side:
+    lora_alpha=32,                                       # [1, 256]
+    lora_dropout=0.05,                                   # [0.0, 0.5]
+    target_modules=["q_proj", "k_proj", "v_proj", "o_proj"],
+    warmup_steps=200,                                    # [0, max_steps/2]
+    gradient_checkpointing=True,                         # save VRAM
+    freeze_vision_encoder=True,                          # standard for LoRA
+    dtype="bfloat16",                                    # {"bfloat16", "float32"}
+    save_freq=500,                                       # [50, max_steps]
+)
+
+print(job["training_job_id"])
+```
+
+| Kwarg | Default if omitted | Bounds | What it does |
+|---|---|---|---|
+| `lora_alpha` | derived from `lora_rank` | [1, 256] | LoRA scaling factor |
+| `lora_dropout` | `0.0` | [0.0, 0.5] | Dropout on LoRA layers |
+| `target_modules` | full pi0.5 set | whitelist below | Modules to LoRA-adapt |
+| `warmup_steps` | `100` | [0, `max_steps/2`] | LR warmup length |
+| `gradient_checkpointing` | `False` | bool | Trade compute for VRAM |
+| `freeze_vision_encoder` | `True` | bool | Freeze the vision tower |
+| `dtype` | `"bfloat16"` | `{"bfloat16", "float32"}` | Compute dtype |
+| `save_freq` | `500` | [50, `max_steps`] | Steps between checkpoints |
+
+`target_modules` whitelist for pi0.5: `q_proj`, `k_proj`, `v_proj`,
+`o_proj`, `gate_proj`, `up_proj`, `down_proj`, `action_in_proj`,
+`action_out_proj`. Pass any subset.
+
+The same kwargs work on `client.training.full_finetune(...)` except
+for the LoRA-specific ones (`lora_alpha`, `lora_dropout`,
+`target_modules`) — those are rejected on full fine-tunes.
+
+---
+
 ## Expected output
 
 ```
