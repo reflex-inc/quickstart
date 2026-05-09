@@ -1,0 +1,54 @@
+[project]
+name = "reflex-quickstart"
+version = "0.1.0"
+description = "End-to-end quickstart for the Reflex Labs robotics fine-tune + inference API"
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "Apache-2.0" }
+authors = [{ name = "Reflex Labs", email = "team@tryreflex.ai" }]
+keywords = ["robotics", "vla", "fine-tuning", "inference", "reflex", "lerobot", "pi0.5"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: System :: Hardware",
+]
+
+dependencies = [
+    # Reflex SDK — talks to the live API for training submission + status polling
+    "reflex-sdk>=0.1.4",
+
+    # Image encoding for inference observations
+    "opencv-python>=4.8",
+    "pillow>=10",
+    "numpy>=1.24",
+]
+
+[project.optional-dependencies]
+arm = [
+    # Required for §3 (closed-loop SO-101 control). Skip with SKIP_ARM=1
+    "lerobot>=0.5.2",
+    "feetech-servo-sdk>=1.0",
+    "deepdiff>=8.0",
+]
+
+[project.urls]
+Homepage = "https://app.tryreflex.ai"
+Documentation = "https://docs.tryreflex.ai"
+Repository = "https://github.com/reflex-inc/quickstart"
+Issues = "https://github.com/reflex-inc/quickstart/issues"
+
+[project.scripts]
+reflex-quickstart = "quickstart:main"
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+py-modules = ["quickstart"]

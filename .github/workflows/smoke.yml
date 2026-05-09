@@ -1,0 +1,39 @@
+name: smoke
+
+# Runs the inference smoke-test against the live Reflex API to catch
+# regressions on the SDK + endpoint side. Skips training (would burn
+# credits) and skips arm hardware (no /dev/ttyACM0 on CI runners).
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    # Every Monday 09:00 UTC
+    - cron: "0 9 * * 1"
+
+jobs:
+  inference-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install reflex-sdk + image deps
+        run: |
+          pip install --upgrade pip
+          pip install reflex-sdk opencv-python pillow numpy
+
+      - name: Run inference smoke test
+        env:
+          REFLEX_API_KEY: ${{ secrets.REFLEX_API_KEY }}
+          SKIP_ARM: "1"
+          SKIP_TRAINING: "1"
+        run: |
+          python quickstart.py

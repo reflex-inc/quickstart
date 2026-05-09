@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# Virtual envs
+.venv/
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# Credentials
+*.env
+.env.local
+.env.*.local
+.api_key
+.reflex/
+api_key.txt
+
+# Quickstart artifacts
+.playwright-cli/
+*.log
