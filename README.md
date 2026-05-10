@@ -116,6 +116,70 @@ sudo python quickstart.py --prompt "pick up the red cube"
 
 ---
 
+## Advanced training parameters (SDK 0.2.0+)
+
+`client.training.lora_finetune()` accepts 8 advanced knobs beyond the
+basics shown above. All are optional; omit to use server defaults. All
+are server-side validated — out-of-bounds values are rejected before any
+GPU is provisioned.
+
+```python
+result = client.training.lora_finetune(
+    hf_source_uri="lerobot/aloha_sim_transfer_cube_human",
+    epochs=1,
+
+    # LoRA shape
+    lora_rank=16,                                       # {4, 8, 16, 32, 64}
+    lora_alpha=32,                                      # [1, 256]
+    lora_dropout=0.05,                                  # [0.0, 0.5]
+    target_modules=["q_proj", "k_proj", "v_proj", "o_proj"],
+
+    # Optimizer schedule
+    warmup_steps=200,                                   # [0, max_steps/2]
+    learning_rate=1e-4,
+    batch_size=2,
+    max_steps=500,
+
+    # Compute / memory
+    gradient_checkpointing=True,                        # cuts ~40% GPU mem
+    dtype="bfloat16",                                   # {"bfloat16", "float32"}
+
+    # VLA-specific
+    freeze_vision_encoder=True,                         # default for transfer
+
+    # Checkpointing cadence
+    save_freq=500,                                      # [50, max_steps]
+)
+```
+
+`target_modules` whitelist for pi0.5: `q_proj`, `k_proj`, `v_proj`,
+`o_proj`, `gate_proj`, `up_proj`, `down_proj`, `action_in_proj`,
+`action_out_proj`.
+
+LoRA-only kwargs (`lora_rank`, `lora_alpha`, `lora_dropout`,
+`target_modules`) are rejected on `full_finetune`.
+
+---
+
+## What training actually does
+
+Customer training runs real LoRA fine-tuning of `pi0.5` on your
+HuggingFace LeRobot dataset, executed via the `lerobot-train` CLI on a
+managed B200 GPU. The adapter is saved to your Reflex account on
+completion. Typical wall time for a small dataset:
+
+- 5 steps:  ~65–110s
+- 30 steps: ~90–120s
+- 200 steps: ~3–5 min
+
+Your `lora_rank`, `target_modules`, `learning_rate`, `batch_size`,
+`max_steps`, `warmup_steps`, and the rest of the params listed above are
+honored by the underlying training loop. You can verify by polling
+`client.training.get(run_id)` — the `modalAdapterPath` field will
+contain `real_runs/<run_id>_<timestamp>/checkpoints/<step>/pretrained_model/`.
+
+---
+
 ## Expected output
 
 ```

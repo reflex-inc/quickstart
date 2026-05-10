@@ -138,7 +138,7 @@ def submit_training_run() -> str | None:
         print(RED("  reflex-sdk is not installed.  pip install reflex-sdk"))
         return None
 
-    print(f"  reflex-sdk version  : {GREEN(getattr(reflex, '__version__', '0.1.4'))}")
+    print(f"  reflex-sdk version  : {GREEN(getattr(reflex, '__version__', '0.2.0'))}")
     print(f"  api_key             : {GRAY(API_KEY[:14] + '…')}")
     print(f"  base model          : {CYAN('pi0.5')}  (flow-matching VLA, 3.4B params)")
     print(f"  training dataset    : {CYAN(DEFAULT_TRAINING_DATASET)}")
