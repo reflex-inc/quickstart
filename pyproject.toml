@@ -1,6 +1,6 @@
 [project]
 name = "reflex-quickstart"
-version = "0.2.0"
+version = "0.3.0"
 description = "End-to-end quickstart for the Reflex Labs robotics fine-tune + inference API"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -21,10 +21,13 @@ classifiers = [
 
 dependencies = [
     # Reflex SDK — talks to the live API for training submission + status polling.
-    # 0.2.0 added 8 advanced training params (lora_alpha, lora_dropout,
-    # target_modules, warmup_steps, gradient_checkpointing,
-    # freeze_vision_encoder, dtype, save_freq) with server-side validation.
-    "reflex-sdk>=0.2.0",
+    # 0.3.0 added the BYO-model surface used by quickstart_byom.py:
+    # client.models.import_from_hf / list / get / delete and
+    # client.keys.bind_model / unbind_model. 0.2.0 added 8 advanced
+    # training params (lora_alpha, lora_dropout, target_modules,
+    # warmup_steps, gradient_checkpointing, freeze_vision_encoder,
+    # dtype, save_freq) with server-side validation.
+    "reflex-sdk>=0.3.0",
 
     # Image encoding for inference observations
     "opencv-python>=4.8",
@@ -54,4 +57,4 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-py-modules = ["quickstart"]
+py-modules = ["quickstart", "quickstart_byom"]

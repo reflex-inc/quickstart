@@ -47,6 +47,10 @@ current — bigger arm moves require explicit opt-in via `REFLEX_MAX_DELTA`).
 | USB webcam | Any V4L2-compatible cam |
 | Linux + `/dev/ttyACM0` access | `sudo` or a `dialout` udev rule |
 
+| Optional (for `quickstart_byom.py` — bring your own pi0.5) | Notes |
+|---|---|
+| A HuggingFace repo with your fine-tuned pi0.5 adapter (private or public) | LoRA `adapter_model.safetensors` + `adapter_config.json`, or a full / merged-LoRA checkpoint. Private repos require a `BYOM_HF_TOKEN` read-scope token. |
+
 ---
 
 ## Install
@@ -177,6 +181,119 @@ Your `lora_rank`, `target_modules`, `learning_rate`, `batch_size`,
 honored by the underlying training loop. You can verify by polling
 `client.training.get(run_id)` — the `modalAdapterPath` field will
 contain `real_runs/<run_id>_<timestamp>/checkpoints/<step>/pretrained_model/`.
+
+---
+
+## Bring Your Own pi0.5 Model
+
+New in reflex-sdk **0.3.0**. Already fine-tuned a pi0.5 adapter
+somewhere else — on your own GPUs, on a third-party platform, or in a
+previous Reflex training run that's living in your HuggingFace
+account? `quickstart_byom.py` demonstrates the BYO-model surface
+end-to-end: import → poll until ready → bind to an API key → prove the
+bound adapter actually serves `/v1/infer`.
+
+```bash
+export REFLEX_API_KEY="rfx_..."
+export BYOM_HF_REPO="<your-org>/<your-pi05-lora-repo>"
+export BYOM_HF_TOKEN="hf_..."          # optional — private HF repos only
+python3 quickstart_byom.py
+```
+
+### Why use it
+
+- **Skip Reflex training entirely** for adapters you've already
+  produced. Customers who train internally (on-prem clusters, in
+  another cloud, or on local workstations) get the same managed
+  inference path as Reflex-trained adapters.
+- **Keep your weights in HuggingFace.** The import is a one-time
+  Reflex-side pull triggered by the SDK; you don't have to surrender
+  ownership of the artifact or duplicate it into a Reflex-specific
+  bucket.
+- **Per-key adapter routing.** `client.keys.bind_model(key_id,
+  model_id)` makes `/v1/infer` for `key_id` serve YOUR adapter from
+  `/vol/customer_models/<org>/<modelId>/` instead of the platform
+  default — verified via the `adapter_path` field on the inference
+  response.
+
+### Supported artifact types
+
+| Kind | Detected via | Notes |
+|---|---|---|
+| **BF16 LoRA adapter** | `adapter_model.safetensors` + `adapter_config.json` | Recommended path. Smallest, fastest hot-swap (~60-90s the first time, near-zero after). |
+| **Full fine-tune** | `model.safetensors*` shards + `config.json` with pi0.5 architecture | Works, but every swap pays the full reload cost. Use when you've actually unfrozen the base. |
+| **Merged LoRA** | `model.safetensors*` + `config.json` with `_merged_from_lora: true` or `_name_or_path` containing `merged_lora` / `lora_merged` | Treated as full fine-tune at load time. |
+
+Quantized (INT4 / AWQ) BYOM is **deferred to v1.5**; submit the
+unquantized weights for now.
+
+### The full BYOM script
+
+```python
+#!/usr/bin/env python3
+"""quickstart_byom.py — import → bind → infer → cleanup."""
+import base64, io, json, os, time, urllib.request
+import reflex
+from PIL import Image
+import numpy as np
+
+API_KEY  = os.environ["REFLEX_API_KEY"]
+HF_REPO  = os.environ["BYOM_HF_REPO"]                       # "yourorg/my-pi05-lora"
+HF_TOKEN = os.environ.get("BYOM_HF_TOKEN") or None          # for private repos
+NAME     = os.environ.get("BYOM_MODEL_NAME", f"quickstart-byom-{int(time.time())}")
+
+client = reflex.Client(api_key=API_KEY)
+
+# Resolve our own key_id (needed for bind_model below) via publicApi:whoami.
+from reflex._convex import convex_call
+who = convex_call("query", "publicApi:whoami", {"apiKey": API_KEY})
+key_id = who["keyId"]
+
+# 1) Import the adapter and poll until it's ready on Reflex storage.
+res = client.models.import_from_hf(HF_REPO, NAME, hf_token=HF_TOKEN)
+model_id = res["modelId"]
+t0 = time.perf_counter()
+while True:
+    artifact = client.models.get(model_id).get("artifact", {})
+    if artifact.get("status") == "ready":
+        print(f"model ready in {time.perf_counter() - t0:.1f}s")
+        break
+    if artifact.get("status") == "failed":
+        raise SystemExit(f"prepare failed: {artifact.get('failureReason')}")
+    time.sleep(5)
+
+# 2) Bind this API key to the imported model.
+client.keys.bind_model(key_id, model_id)
+
+# 3) Call /v1/infer — adapter_path should now point at /vol/customer_models/...
+img = Image.fromarray(np.zeros((224, 224, 3), dtype="uint8"))
+buf = io.BytesIO(); img.save(buf, format="JPEG")
+b64 = base64.b64encode(buf.getvalue()).decode()
+body = json.dumps({"observation": {
+    "prompt": "test",
+    "state": [0.0] * 14,
+    "images": {n: {"encoding": "jpeg_base64", "data": b64}
+               for n in ("cam_high", "cam_left_wrist", "cam_right_wrist")},
+}}).encode()
+req = urllib.request.Request(
+    "https://kindly-bullfrog-494.convex.site/v1/infer",
+    data=body, method="POST",
+    headers={"content-type": "application/json",
+             "authorization": f"Bearer {API_KEY}"},
+)
+with urllib.request.urlopen(req, timeout=300) as r:
+    out = json.loads(r.read())
+print("adapter_path:", out.get("adapter_path"))   # → /vol/customer_models/<org>/<modelId>/...
+
+# 4) Cleanup: unbind and (optionally) delete.
+client.keys.unbind_model(key_id)
+client.models.delete(model_id)
+```
+
+The bundled `quickstart_byom.py` adds banner output, error
+diagnostics, configurable polling, and `BYOM_KEEP=1` to skip the
+unbind/delete steps if you want to leave the binding in place for
+follow-up testing.
 
 ---
 
