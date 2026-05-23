@@ -85,7 +85,10 @@ def _convex_mutation(path: str, args: dict) -> dict:
         f"{CONVEX_URL}/api/mutation",
         data=body,
         method="POST",
-        headers={"content-type": "application/json"},
+        headers={
+            "content-type": "application/json",
+            "user-agent": "reflex-quickstart/1.0 (+https://github.com/reflex-inc/quickstart)",
+        },
     )
     try:
         with urllib.request.urlopen(req, timeout=30) as resp:
@@ -197,7 +200,11 @@ def run_inference(session: dict) -> None:
     t0 = time.perf_counter()
     try:
         req = urllib.request.Request(
-            health_url, headers={"Authorization": f"Bearer {token}"}
+            health_url,
+            headers={
+                "Authorization": f"Bearer {token}",
+                "user-agent": "reflex-quickstart/1.0 (+https://github.com/reflex-inc/quickstart)",
+            },
         )
         with urllib.request.urlopen(req, timeout=60) as resp:
             body = resp.read()
