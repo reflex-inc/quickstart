@@ -33,6 +33,45 @@ current — bigger arm moves require explicit opt-in via `REFLEX_MAX_DELTA`).
 
 ---
 
+---
+
+## MolmoAct2-BimanualYAM Inference (NEW)
+
+The same Reflex SaaS auth + billing flow now powers **MolmoAct2-BimanualYAM**,
+an 8B vision-language-action model from AI2 fine-tuned for bimanual YAM arms.
+Same `rfx_*` API key, same per-second billing, different `baseModel`:
+
+```bash
+pip install requests numpy pillow
+export REFLEX_API_KEY="rfx_..."
+python3 quickstart_molmoact.py
+```
+
+This script verifies in under 1 second that:
+
+| Section | What it proves |
+|---|---|
+| **§1 Authorize** | API key authenticates → Convex picks a live Modal worker (us-west B200) → signs a 30-min HMAC session token |
+| **§2 Worker health** | Authenticated GET to the Modal worker — proves the worker is up + reachable |
+
+If you want the **closed-loop bimanual YAM demo** (arms move from camera observations):
+
+```bash
+git clone https://github.com/reflex-inc/reflex
+cd reflex/sdk/python && pip install -e .
+
+# Connect to your YAM arms + 3 cameras via the cloud BASELINE worker
+reflex connect --config ../../examples/yam_bimanual_molmoact2_BASELINE.yaml
+```
+
+**Pricing:** $10/hr × actual GPU-seconds (≈ $0.001 per 200ms inference call).
+**Quality:** WebRTC + adaptive JPEG q=95 — visually lossless (PSNR 38.8 dB vs raw).
+**Latency:** ~220 ms p50 RTT from residential WAN to us-west.
+
+See [§MolmoAct2 architecture](#molmoact2-bimanualyam-architecture) below for the
+worker setup, primeNode pool, and HMAC session-token verification details.
+
+
 ## Prerequisites
 
 | Required | How to get it |
