@@ -54,7 +54,7 @@ from PIL import Image
 # CONFIG
 # ─────────────────────────────────────────────────────────────────────────────
 CONVEX_URL = os.environ.get(
-    "REFLEX_CONVEX_URL", "https://kindly-bullfrog-494.convex.cloud"
+    "REFLEX_CONVEX_URL", "https://api.tryreflex.ai"
 ).rstrip("/")
 BASE_MODEL = "molmoact2-bimanualyam"
 ROBOT_TYPE = "yam_bimanual"
