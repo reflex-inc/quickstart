@@ -48,6 +48,11 @@ yam = [
     # 0.6.6 is the audited-stable, hardware-verified release (0.6.5 had a
     # connect-time crash — do not pin below 0.6.6). The i2rt YAM driver and
     # pyrealsense2 are installed by setup_yam.sh (i2rt is a git dependency).
+    #
+    # NOTE: the YAM path requires Python 3.10–3.12. i2rt pulls dm-env, whose
+    # dm-tree wheel does not build on 3.13/3.14. The base quickstart targets
+    # 3.12+; this extra is only usable on the 3.10–3.12 overlap. Verified
+    # end-to-end on 3.10 (HAL) with i2rt 1.1.2.
     "reflex-sdk[webrtc]>=0.6.6",
     "pyrealsense2>=2.54",
 ]

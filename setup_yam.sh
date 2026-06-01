@@ -20,13 +20,38 @@ REFLEX_SDK_VERSION="${REFLEX_SDK_VERSION:-0.6.6}"
 CAN_BITRATE="${CAN_BITRATE:-1000000}"
 CAN_INTERFACES="${CAN_INTERFACES:-can0 can1}"
 
-PY="${PYTHON:-python3}"
-
 bold() { printf '\033[1m%s\033[0m\n' "$*"; }
 ok()   { printf '  \033[32m✓\033[0m %s\n' "$*"; }
 warn() { printf '  \033[33m!\033[0m %s\n' "$*"; }
+die()  { printf '  \033[31m✗ %s\033[0m\n' "$*" >&2; exit 1; }
+
+# Pick a SUPPORTED interpreter. i2rt's pinned dm-env==1.6 pulls dm-tree, which
+# only has usable wheels for CPython 3.10–3.12 — on 3.13/3.14 it tries to
+# cmake-build from source and fails. HAL runs 3.10. Honor $PYTHON if set,
+# else probe 3.12 → 3.11 → 3.10, else fall back to python3 with a version gate.
+pick_python() {
+  if [ -n "${PYTHON:-}" ]; then echo "$PYTHON"; return; fi
+  for cand in python3.12 python3.11 python3.10; do
+    command -v "$cand" >/dev/null 2>&1 && { echo "$cand"; return; }
+  done
+  echo "python3"
+}
+PY="$(pick_python)"
+
+require_supported_python() {
+  "$PY" - <<'PYEOF' || die "Unsupported Python. Install 3.10–3.12 (e.g. 'pyenv install 3.12') and re-run with PYTHON=python3.12 ./setup_yam.sh ..."
+import sys
+maj, minor = sys.version_info[:2]
+ok = maj == 3 and 10 <= minor <= 12
+print(f"  using {sys.executable} (Python {maj}.{minor}) — {'supported' if ok else 'UNSUPPORTED'}")
+sys.exit(0 if ok else 1)
+PYEOF
+}
 
 install() {
+  bold "Python interpreter"
+  require_supported_python
+
   bold "Installing Reflex SDK (stable v${REFLEX_SDK_VERSION}) + WebRTC extras"
   # [webrtc] pulls aiortc/av/msgpack/numpy/Pillow — required for target.kind=webrtc
   "$PY" -m pip install --upgrade "reflex-sdk[webrtc]==${REFLEX_SDK_VERSION}"
@@ -78,6 +103,7 @@ PYEOF
 
 check() {
   bold "Readiness check"
+  "$PY" -c "import sys; v=sys.version_info; ok=v[0]==3 and 10<=v[1]<=12; print(f'  Python {v[0]}.{v[1]}', '(supported)' if ok else '(UNSUPPORTED — use 3.10–3.12)')" 2>/dev/null || warn "no usable python"
   "$PY" -c "import reflex; print('  reflex-sdk', reflex.__version__)" 2>/dev/null || warn "reflex-sdk not installed — run ./setup_yam.sh install"
   "$PY" -c "import aiortc, av, msgpack, numpy, PIL; print('  webrtc extras OK')" 2>/dev/null || warn "webrtc extras missing — pip install 'reflex-sdk[webrtc]'"
   "$PY" -c "import i2rt; print('  i2rt OK')" 2>/dev/null || warn "i2rt missing"

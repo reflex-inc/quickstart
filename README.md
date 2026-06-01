@@ -75,11 +75,16 @@ What you need on the robot machine:
 
 | Need | Notes |
 |---|---|
+| **Python 3.10–3.12** | i2rt's `dm-env` dep has no usable wheel on 3.13/3.14. `setup_yam.sh` auto-picks a supported interpreter and refuses unsupported ones |
 | 2× YAM arms over CAN | `can0` + `can1` (socketcan). `./setup_yam.sh can` brings them up |
 | 3 cameras | RealSense (by serial) or any USB webcam (`kind: v4l2`) |
 | `reflex-sdk[webrtc]==0.6.6` | Audited stable, hardware-verified. `setup_yam.sh` pins it |
-| `i2rt` robot driver | `pip install` from [i2rt-robotics/i2rt](https://github.com/i2rt-robotics/i2rt) |
+| `i2rt` robot driver (1.1.2) | `pip install git+https://github.com/i2rt-robotics/i2rt.git` (public, no auth). `setup_yam.sh install` does this |
 | Reflex API key + balance | `export REFLEX_API_KEY=...` or `reflex login` |
+
+> **Python version matters here.** The base quickstart targets 3.12+, but the
+> YAM path needs **3.10–3.12** because of an i2rt transitive dependency. If your
+> default `python3` is 3.13/3.14, run with `PYTHON=python3.12 ./setup_yam.sh all`.
 
 **Ctrl-C** ends the session and **safely homes both arms** (motors released — no
 drop, no hold). Start with `mode: dry_run` in the yaml to verify the camera →
