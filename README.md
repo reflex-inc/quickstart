@@ -54,15 +54,36 @@ This script verifies in under 1 second that:
 | **§1 Authorize** | API key authenticates → Convex picks a live Modal worker (us-west B200) → signs a 30-min HMAC session token |
 | **§2 Worker health** | Authenticated GET to the Modal worker — proves the worker is up + reachable |
 
-If you want the **closed-loop bimanual YAM demo** (arms move from camera observations):
+### Closed-loop bimanual YAM (arms move from camera observations)
+
+Everything you need ships in this repo — no monorepo clone required. The model
+runs on a Reflex cloud B200; this machine only runs the client, so **no local
+GPU is needed**.
 
 ```bash
-git clone https://github.com/reflex-inc/reflex
-cd reflex/sdk/python && pip install -e .
+# 1. One-shot setup: SDK + i2rt driver + RealSense, bring up CAN, list cameras
+./setup_yam.sh all
 
-# Connect to your YAM arms + 3 cameras via the cloud BASELINE worker
-reflex connect --config ../../examples/yam_bimanual_molmoact2_BASELINE.yaml
+# 2. Edit yam_bimanual.yaml — paste your 3 camera serials, set CAN channels + prompt
+#    (./setup_yam.sh cameras prints the serials)
+
+# 3. Dry run first (full pipeline, NO arm motion), then go live
+reflex connect --config yam_bimanual.yaml          # set mode: dry_run to test safely
 ```
+
+What you need on the robot machine:
+
+| Need | Notes |
+|---|---|
+| 2× YAM arms over CAN | `can0` + `can1` (socketcan). `./setup_yam.sh can` brings them up |
+| 3 cameras | RealSense (by serial) or any USB webcam (`kind: v4l2`) |
+| `reflex-sdk[webrtc]==0.6.6` | Audited stable, hardware-verified. `setup_yam.sh` pins it |
+| `i2rt` robot driver | `pip install` from [i2rt-robotics/i2rt](https://github.com/i2rt-robotics/i2rt) |
+| Reflex API key + balance | `export REFLEX_API_KEY=...` or `reflex login` |
+
+**Ctrl-C** ends the session and **safely homes both arms** (motors released — no
+drop, no hold). Start with `mode: dry_run` in the yaml to verify the camera →
+state → inference → action loop with the arms held still before applying motion.
 
 **Pricing:** $10/hr × actual GPU-seconds (≈ $0.001 per 200ms inference call).
 **Quality:** WebRTC + adaptive JPEG q=95 — visually lossless (PSNR 38.8 dB vs raw).

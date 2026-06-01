@@ -42,6 +42,15 @@ arm = [
     "feetech-servo-sdk>=1.0",
     "deepdiff>=8.0",
 ]
+yam = [
+    # Closed-loop bimanual YAM control via `reflex connect --config yam_bimanual.yaml`.
+    # The [webrtc] extra pulls aiortc/av/msgpack — required for target.kind=webrtc.
+    # 0.6.6 is the audited-stable, hardware-verified release (0.6.5 had a
+    # connect-time crash — do not pin below 0.6.6). The i2rt YAM driver and
+    # pyrealsense2 are installed by setup_yam.sh (i2rt is a git dependency).
+    "reflex-sdk[webrtc]>=0.6.6",
+    "pyrealsense2>=2.54",
+]
 
 [project.urls]
 Homepage = "https://app.tryreflex.ai"

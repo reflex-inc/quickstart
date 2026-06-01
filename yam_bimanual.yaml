@@ -1,0 +1,66 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Reflex Labs — Bimanual YAM closed-loop inference config
+#
+# Drives TWO YAM arms (14-DOF total) from the MolmoAct2-BimanualYAM 8B VLA
+# model running on the Reflex cloud. The model lives on a B200 in Modal; this
+# machine only runs the `reflex connect` client — NO local GPU required.
+#
+# RUN:
+#   export REFLEX_API_KEY="rfx_..."          # or: reflex login
+#   reflex connect --config yam_bimanual.yaml
+#
+# Ctrl-C ends the session and safely homes both arms (motors released).
+#
+# Edit the three places marked  # EDIT  for your machine, then run.
+# ─────────────────────────────────────────────────────────────────────────────
+
+mode: apply_actions          # apply_actions = drive the arms.
+                             # Set to dry_run to test the full pipeline with
+                             # NO arm motion (recommended for first run).
+max_steps: 0                 # 0 = run until Ctrl-C
+control_period_s: 0.2
+stop_on_error: true
+pipeline_inference: false
+
+target:
+  kind: webrtc               # WebRTC DataChannel — the fast path (~90ms server,
+                             # ~220ms round-trip). Do NOT hardcode a worker URL:
+                             # omitting `url` lets the cli ask Convex to pick the
+                             # nearest healthy worker (region-aware) for you.
+  timeout_s: 60
+  connect_timeout_s: 60
+  state_field: "state"
+  instruction_field: "prompt"
+  img_size: 256
+  extra_payload:
+    num_steps: 5             # action-chunk steps applied per inference
+
+hardware:
+  kind: yam_bimanual
+  config:
+    # EDIT — match your CAN wiring. Check with: ip -br link | grep can
+    left:  { channel: can1, gripper: linear_4310 }
+    right: { channel: can0, gripper: linear_4310 }
+    hz: 25                   # arm control loop rate
+    zero_gravity_mode: false
+    instruction: "pack the container"   # EDIT — the task prompt for the model
+    home_duration_s: 4.0     # how long the home move takes on start + stop
+    chunk_boundary_max_delta: 0.05
+    chunk_apply_horizon: 0
+
+# Three cameras feed the model: a top/overhead view + one per wrist.
+# This template uses RealSense devices addressed by serial (most portable —
+# survives USB re-enumeration). Find your serials with:  ./setup_yam.sh cameras
+cameras:
+  # EDIT — replace with YOUR three RealSense serials.
+  top:   { kind: realsense, serial: "REPLACE_TOP_SERIAL",   width: 640, height: 480, fps: 30 }
+  left:  { kind: realsense, serial: "REPLACE_LEFT_SERIAL",  width: 640, height: 480, fps: 30 }
+  right: { kind: realsense, serial: "REPLACE_RIGHT_SERIAL", width: 640, height: 480, fps: 30 }
+
+  # ── Alternatives ──────────────────────────────────────────────────────────
+  # Plain USB webcams instead of RealSense:
+  #   top: { kind: v4l2, device: /dev/video0, width: 640, height: 480 }
+  #
+  # Shared-memory (matches the Reflex HAL rig — requires a separate
+  # camera_broadcaster process writing frames to /dev/shm):
+  #   top: { kind: shm, name: top }
