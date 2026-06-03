@@ -56,35 +56,47 @@ This script verifies in under 1 second that:
 
 ### Closed-loop bimanual YAM (arms move from camera observations)
 
-Everything you need ships in this repo — no monorepo clone required. The model
-runs on a Reflex cloud B200; this machine only runs the client, so **no local
-GPU is needed**.
+Everything runs from this repo — no monorepo clone, **no local GPU** (the model
+runs on a Reflex cloud B200). Uses [`uv`](https://docs.astral.sh/uv/) so the
+whole stack installs from a pinned lockfile in **one command** — same versions
+that are verified working on real hardware (i2rt @ a known-good commit, Python
+3.12, SDK 0.6.6).
 
 ```bash
-# 1. One-shot setup: SDK + i2rt driver + RealSense, bring up CAN, list cameras
-./setup_yam.sh all
+# 1. Install EVERYTHING (SDK[webrtc] + RealSense + i2rt, all pinned in uv.lock)
+uv sync --extra yam
 
-# 2. Edit yam_bimanual.yaml — paste your 3 camera serials, set CAN channels + prompt
-#    (./setup_yam.sh cameras prints the serials)
+# 2. Auto-detect cameras → write yam_bimanual.yaml → check CAN. No hand-editing.
+uv run yam-setup
 
-# 3. Dry run first (full pipeline, NO arm motion), then go live
-reflex connect --config yam_bimanual.yaml          # set mode: dry_run to test safely
+# 3. CAN bring-up (one-time, needs sudo). yam-setup prints these if CAN is down:
+sudo ip link set can0 up type can bitrate 1000000
+sudo ip link set can1 up type can bitrate 1000000
+
+# 4. Run. Defaults to dry_run (NO motion). Set REFLEX_YAM_APPLY=1 to move arms.
+export REFLEX_API_KEY="rfx_..."          # or: uv run reflex login
+uv run yam-demo                          # Ctrl-C ONCE → safe-home
 ```
+
+That's it — no version hunting, no editing serials by hand. `uv sync` reads
+`uv.lock` so every machine gets the identical, hardware-verified dependency set.
 
 What you need on the robot machine:
 
 | Need | Notes |
 |---|---|
-| **Python 3.10–3.12** | i2rt's `dm-env` dep has no usable wheel on 3.13/3.14. `setup_yam.sh` auto-picks a supported interpreter and refuses unsupported ones |
-| 2× YAM arms over CAN | `can0` + `can1` (socketcan). `./setup_yam.sh can` brings them up |
-| 3 cameras | RealSense (by serial) or any USB webcam (`kind: v4l2`) |
-| `reflex-sdk[webrtc]==0.6.6` | Audited stable, hardware-verified. `setup_yam.sh` pins it |
-| `i2rt` robot driver (1.1.2) | `pip install git+https://github.com/i2rt-robotics/i2rt.git` (public, no auth). `setup_yam.sh install` does this |
-| Reflex API key + balance | `export REFLEX_API_KEY=...` or `reflex login` |
+| [`uv`](https://docs.astral.sh/uv/) | `curl -LsSf https://astral.sh/uv/install.sh \| sh`. It installs Python 3.12 + all deps for you |
+| 2× YAM arms over CAN | `can0` + `can1` (socketcan) — `yam-setup` checks them + prints the bring-up |
+| 3 RealSense cameras | 1× D435 (top) + 2× D405 (wrists) — `yam-setup` auto-detects serials |
+| Reflex API key + balance | `export REFLEX_API_KEY=...` or `uv run reflex login` |
 
-> **Python version matters here.** The base quickstart targets 3.12+, but the
-> YAM path needs **3.10–3.12** because of an i2rt transitive dependency. If your
-> default `python3` is 3.13/3.14, run with `PYTHON=python3.12 ./setup_yam.sh all`.
+> **Why pinned?** i2rt's tip (1.1.2) has an fd=-1 CAN control bug; the lockfile
+> pins the verified commit. dm-tree has no wheels on 3.13+ and lerobot needs
+> ≥3.12 → Python is pinned to 3.12. You never have to know any of this — `uv
+> sync` just gives you the working set.
+>
+> Prefer the old pip flow? `./setup_yam.sh all` still works (auto-picks a
+> Python, pip-installs) — but `uv sync` is the reproducible path.
 
 **Ctrl-C** ends the session and **safely homes both arms** (motors released — no
 drop, no hold). Start with `mode: dry_run` in the yaml to verify the camera →

@@ -1,61 +1,57 @@
 [project]
 name = "reflex-quickstart"
-version = "0.3.0"
+version = "0.4.0"
 description = "End-to-end quickstart for the Reflex Labs robotics fine-tune + inference API"
 readme = "README.md"
-requires-python = ">=3.12"
+# Python 3.12 only: the bimanual-YAM path pulls i2rt → dm-env → dm-tree (no
+# wheels on 3.13+), and lerobot (arm extra) requires >=3.12 — 3.12 is the
+# single version that satisfies both. uv installs it for you automatically.
+requires-python = ">=3.12,<3.13"
 license = { text = "Apache-2.0" }
 authors = [{ name = "Reflex Labs", email = "team@tryreflex.ai" }]
-keywords = ["robotics", "vla", "fine-tuning", "inference", "reflex", "lerobot", "pi0.5"]
+keywords = ["robotics", "vla", "fine-tuning", "inference", "reflex", "yam", "pi0.5"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "Intended Audience :: Science/Research",
     "License :: OSI Approved :: Apache Software License",
     "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
-    "Programming Language :: Python :: 3.13",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Topic :: System :: Hardware",
 ]
 
+# Default deps cover the training + inference smoke tests (quickstart*.py).
 dependencies = [
-    # Reflex SDK — talks to the live API for training submission + status polling.
-    # 0.3.0 added the BYO-model surface used by quickstart_byom.py:
-    # client.models.import_from_hf / list / get / delete and
-    # client.keys.bind_model / unbind_model. 0.2.0 added 8 advanced
-    # training params (lora_alpha, lora_dropout, target_modules,
-    # warmup_steps, gradient_checkpointing, freeze_vision_encoder,
-    # dtype, save_freq) with server-side validation.
-    "reflex-sdk>=0.3.0",
-
-    # Image encoding for inference observations
+    "reflex-sdk>=0.6.6",
     "opencv-python>=4.8",
     "pillow>=10",
     "numpy>=1.24",
 ]
 
 [project.optional-dependencies]
+# `uv sync --extra yam` installs EVERYTHING for the closed-loop bimanual YAM
+# demo in one command: the WebRTC transport, RealSense, and the i2rt driver
+# pinned to the hardware-verified commit (newer i2rt has an fd=-1 control bug).
+yam = [
+    "reflex-sdk[webrtc]>=0.6.6",
+    "pyrealsense2>=2.54",
+    "i2rt",
+]
 arm = [
-    # Required for §3 (closed-loop SO-101 control). Skip with SKIP_ARM=1
-    "lerobot>=0.5.2",
+    # lerobot 0.5.2 was yanked from PyPI; 0.5.1 is the latest available.
+    "lerobot>=0.5.0",
     "feetech-servo-sdk>=1.0",
     "deepdiff>=8.0",
 ]
-yam = [
-    # Closed-loop bimanual YAM control via `reflex connect --config yam_bimanual.yaml`.
-    # The [webrtc] extra pulls aiortc/av/msgpack — required for target.kind=webrtc.
-    # 0.6.6 is the audited-stable, hardware-verified release (0.6.5 had a
-    # connect-time crash — do not pin below 0.6.6). The i2rt YAM driver and
-    # pyrealsense2 are installed by setup_yam.sh (i2rt is a git dependency).
-    #
-    # NOTE: the YAM path requires Python 3.10–3.12. i2rt pulls dm-env, whose
-    # dm-tree wheel does not build on 3.13/3.14. The base quickstart targets
-    # 3.12+; this extra is only usable on the 3.10–3.12 overlap. Verified
-    # end-to-end on 3.10 (HAL) with i2rt 1.1.2.
-    "reflex-sdk[webrtc]>=0.6.6",
-    "pyrealsense2>=2.54",
-]
+
+# i2rt has no PyPI release — pull it from git, PINNED to the commit verified
+# working on real YAM hardware (HAL + box). The tip of main (1.1.2) has an
+# fd=-1 CAN control regression; do NOT unpin without re-verifying on hardware.
+[tool.uv.sources]
+i2rt = { git = "https://github.com/i2rt-robotics/i2rt.git", rev = "7b6d5016f05ca63f9ef0185b7143e63f2c7a5708" }
 
 [project.urls]
 Homepage = "https://app.tryreflex.ai"
@@ -65,10 +61,15 @@ Issues = "https://github.com/reflex-inc/quickstart/issues"
 
 [project.scripts]
 reflex-quickstart = "quickstart:main"
+# Bimanual YAM: one command each.
+#   uv run yam-setup  → detect RealSense serials, write yam_bimanual.yaml, check CAN
+#   uv run yam-demo   → setup + run the closed-loop demo (Ctrl-C = safe-home)
+yam-setup = "yam_robot:setup_cli"
+yam-demo = "yam_robot:demo_cli"
 
 [build-system]
 requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-py-modules = ["quickstart", "quickstart_byom"]
+py-modules = ["quickstart", "quickstart_byom", "yam_robot"]
