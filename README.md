@@ -72,6 +72,44 @@ See [§MolmoAct2 architecture](#molmoact2-bimanualyam-architecture) below for th
 worker setup, primeNode pool, and HMAC session-token verification details.
 
 
+## Bring your own robot (custom arm)
+
+The SDK ships connectors for a handful of arms, but any robot works — you don't
+need a PR to the SDK. Implement a small Python class and point your config at it
+by `module:Class` path; Reflex imports it at connect time.
+
+```yaml
+# in your connect config
+hardware:
+  kind: "custom_robot:XArm5Connector"   # module:Class — Reflex imports this
+  config:                               # passed to __init__ as kwargs
+    ip: 192.168.1.220
+    hz: 25
+```
+
+The contract (`reflex.connectors.base.RobotConnector`) is five methods:
+
+| Method | Does |
+|---|---|
+| `start()` | open drivers + cameras |
+| `get_observation() -> Observation` | one observation per control step |
+| `apply_action(ActionChunk)` | apply an action chunk to the hardware |
+| `safe_stop(reason="")` | halt motion safely — implement this for real arms |
+| `stop()` | release hardware |
+
+`Observation(state: list[float], cameras: {name: image}, task: str)` and
+`ActionChunk(actions)` where `actions` is `[T, action_dim]`. You map the model's
+action dimension onto your robot's DOF inside `apply_action`.
+
+A working **xArm5 skeleton** is in [`custom_robot.py`](custom_robot.py) — copy it,
+fill in the commented driver lines, and run `python custom_robot.py` to confirm
+the class resolves through the registry the way `reflex connect` will load it.
+
+> Heads-up: a base model (e.g. pi0.5) will run inference on any arm, but it
+> won't do good manipulation on an embodiment it hasn't seen. For real task
+> performance on a new arm, plan on a fine-tune with your own data.
+
+
 ## Prerequisites
 
 | Required | How to get it |
