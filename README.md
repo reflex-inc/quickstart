@@ -54,15 +54,53 @@ This script verifies in under 1 second that:
 | **§1 Authorize** | API key authenticates → Convex picks a live Modal worker (us-west B200) → signs a 30-min HMAC session token |
 | **§2 Worker health** | Authenticated GET to the Modal worker — proves the worker is up + reachable |
 
-If you want the **closed-loop bimanual YAM demo** (arms move from camera observations):
+### Closed-loop bimanual YAM (arms move from camera observations)
+
+Everything runs from this repo — no monorepo clone, **no local GPU** (the model
+runs on a Reflex cloud B200). Uses [`uv`](https://docs.astral.sh/uv/) so the
+whole stack installs from a pinned lockfile in **one command** — same versions
+that are verified working on real hardware (i2rt @ a known-good commit, Python
+3.12, SDK 0.6.6).
 
 ```bash
-git clone https://github.com/reflex-inc/reflex
-cd reflex/sdk/python && pip install -e .
+# 1. Install EVERYTHING (SDK[webrtc] + RealSense + i2rt, all pinned in uv.lock)
+uv sync --extra yam
 
-# Connect to your YAM arms + 3 cameras via the cloud BASELINE worker
-reflex connect --config ../../examples/yam_bimanual_molmoact2_BASELINE.yaml
+# 2. Auto-detect cameras → write yam_bimanual.yaml → check CAN. No hand-editing.
+uv run yam-setup
+
+# 3. CAN bring-up (one-time, needs sudo). yam-setup prints these if CAN is down:
+sudo ip link set can0 up type can bitrate 1000000
+sudo ip link set can1 up type can bitrate 1000000
+
+# 4. Run. Defaults to dry_run (NO motion). Set REFLEX_YAM_APPLY=1 to move arms.
+export REFLEX_API_KEY="rfx_..."          # or: uv run reflex login
+uv run yam-demo                          # Ctrl-C ONCE → safe-home
 ```
+
+That's it — no version hunting, no editing serials by hand. `uv sync` reads
+`uv.lock` so every machine gets the identical, hardware-verified dependency set.
+
+What you need on the robot machine:
+
+| Need | Notes |
+|---|---|
+| [`uv`](https://docs.astral.sh/uv/) | `curl -LsSf https://astral.sh/uv/install.sh \| sh`. It installs Python 3.12 + all deps for you |
+| 2× YAM arms over CAN | `can0` + `can1` (socketcan) — `yam-setup` checks them + prints the bring-up |
+| 3 RealSense cameras | 1× D435 (top) + 2× D405 (wrists) — `yam-setup` auto-detects serials |
+| Reflex API key + balance | `export REFLEX_API_KEY=...` or `uv run reflex login` |
+
+> **Why pinned?** i2rt's tip (1.1.2) has an fd=-1 CAN control bug; the lockfile
+> pins the verified commit. dm-tree has no wheels on 3.13+ and lerobot needs
+> ≥3.12 → Python is pinned to 3.12. You never have to know any of this — `uv
+> sync` just gives you the working set.
+>
+> Prefer the old pip flow? `./setup_yam.sh all` still works (auto-picks a
+> Python, pip-installs) — but `uv sync` is the reproducible path.
+
+**Ctrl-C** ends the session and **safely homes both arms** (motors released — no
+drop, no hold). Start with `mode: dry_run` in the yaml to verify the camera →
+state → inference → action loop with the arms held still before applying motion.
 
 **Pricing:** $10/hr × actual GPU-seconds (≈ $0.001 per 200ms inference call).
 **Quality:** WebRTC + adaptive JPEG q=95 — visually lossless (PSNR 38.8 dB vs raw).
